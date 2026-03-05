@@ -14,8 +14,12 @@ func NewRepository(cfg *config.Config) (FileRepository, error) {
 		}
 		return NewPostgresRepo(cfg.Database.DSN)
 	case "duckdb":
-		return nil, errors.New("duckdb not implemented yet - use postgres or implement duckdb support")
+		dsn := cfg.Database.DSN
+		if dsn == "" {
+			dsn = "./meta.db"
+		}
+		return NewDuckDBRepo(dsn)
 	default:
-		return nil, errors.New("unsupported DB_TYPE: use postgres")
+		return nil, errors.New("unsupported DB_TYPE: use postgres or duckdb")
 	}
 }

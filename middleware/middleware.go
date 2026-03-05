@@ -33,6 +33,14 @@ func Recovery() echo.MiddlewareFunc {
 }
 
 func RateLimit(cfg *config.Config) echo.MiddlewareFunc {
+	if !cfg.RateLimit.Enabled {
+		return func(next echo.HandlerFunc) echo.HandlerFunc {
+			return func(c *echo.Context) error {
+				return next(c)
+			}
+		}
+	}
+
 	limiter := rate.NewLimiter(
 		rate.Limit(float64(cfg.RateLimit.RPM)/60),
 		cfg.RateLimit.Burst,
@@ -49,7 +57,14 @@ func RateLimit(cfg *config.Config) echo.MiddlewareFunc {
 }
 
 func CORS() echo.MiddlewareFunc {
-	return middleware.CORS()
+	return middleware.CORSWithConfig(
+		middleware.CORSConfig{
+			AllowOrigins: []string{"*"},
+			UnsafeAllowOriginFunc: func(c *echo.Context, origin string) (allowedOrigin string, allowed bool, err error) {
+				return c.Request().Header.Get("Origin"), true, nil
+			},
+		},
+	)
 }
 
 func BodyLimit(size int64) echo.MiddlewareFunc {

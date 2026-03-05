@@ -33,7 +33,7 @@ func (h *FileHandler) Upload(c *echo.Context) error {
 		})
 	}
 
-	if file.Size > h.cfg.Storage.MaxFileSizeMB {
+	if file.Size > h.cfg.Storage.MaxFileSizeMB*1024*1024 {
 		return c.JSON(http.StatusBadRequest, models.ErrorResponse{
 			Error:   "file_too_large",
 			Message: "File exceeds maximum allowed size",

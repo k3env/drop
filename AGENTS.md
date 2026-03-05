@@ -100,7 +100,7 @@ Form fields:
 
 Response:
 
-{ "token": "abc123", "url": "https://files.example.com/abc123",
+{ "token": "abc123",
 "expires_at": "2026-03-03T12:00:00Z" }
 
 ------------------------------------------------------------------------

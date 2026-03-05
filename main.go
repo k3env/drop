@@ -68,11 +68,13 @@ func main() {
 
 	e := echo.New()
 
+	e.Use(httpMetrics.Middleware())
+	e.Use(httpTracing.Middleware())
 	e.Use(middleware.Logger(logger))
 	e.Use(middleware.Recovery())
 	e.Use(middleware.RateLimit(cfg))
 	e.Use(middleware.CORS())
-	e.Use(middleware.BodyLimit(cfg.Storage.MaxFileSizeMB))
+	e.Use(middleware.BodyLimit(cfg.Storage.MaxFileSizeMB * 1024 * 1024))
 
 	e.GET("/health", handlers.Health)
 	e.GET("/ready", handlers.Ready)

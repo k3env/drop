@@ -65,7 +65,7 @@ func (r *PostgresRepo) GetByToken(ctx context.Context, token string) (*models.Fi
 	FROM files WHERE token = $1
 	`
 	row := r.pool.QueryRow(ctx, query, token)
-	return scanFile(row)
+	return scanPostgresFile(row)
 }
 
 func (r *PostgresRepo) GetByID(ctx context.Context, id string) (*models.File, error) {
@@ -74,7 +74,7 @@ func (r *PostgresRepo) GetByID(ctx context.Context, id string) (*models.File, er
 	FROM files WHERE id = $1
 	`
 	row := r.pool.QueryRow(ctx, query, id)
-	return scanFile(row)
+	return scanPostgresFile(row)
 }
 
 func (r *PostgresRepo) Update(ctx context.Context, file *models.File) error {
@@ -100,7 +100,7 @@ func (r *PostgresRepo) MarkDownloaded(ctx context.Context, token string) error {
 	return err
 }
 
-func scanFile(row pgx.Row) (*models.File, error) {
+func scanPostgresFile(row pgx.Row) (*models.File, error) {
 	var f models.File
 	var id string
 	err := row.Scan(&id, &f.Token, &f.Filename, &f.ContentType, &f.Size,

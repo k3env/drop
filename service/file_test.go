@@ -11,10 +11,35 @@ import (
 	"github.com/k3env/drop/service/mocks"
 )
 
+func testConfig() *config.Config {
+	return &config.Config{
+		App: &config.AppConfig{
+			Port: 8080,
+		},
+		Storage: &config.StorageConfig{
+			MaxFileSizeMB: 100,
+			DefaultTTL:    24 * time.Hour,
+			Type:          "local",
+			Local: &config.LocalStorageConfig{
+				Path: "./testdata",
+			},
+		},
+		Database: &config.DatabaseConfig{
+			Type: "duckdb",
+			DSN:  "./meta.test.db",
+		},
+		RateLimit: &config.RateLimitConfig{
+			Enabled: false,
+			RPM:     60,
+			Burst:   10,
+		},
+	}
+}
+
 func TestGenerateToken(t *testing.T) {
 	repo := mocks.NewMockFileRepository()
 	stor := mocks.NewMockFileStorage()
-	cfg := config.Load()
+	cfg := testConfig()
 
 	svc := NewFileService(repo, stor, cfg)
 
@@ -31,7 +56,7 @@ func TestGenerateToken(t *testing.T) {
 func TestUpload(t *testing.T) {
 	repo := mocks.NewMockFileRepository()
 	stor := mocks.NewMockFileStorage()
-	cfg := config.Load()
+	cfg := testConfig()
 
 	svc := NewFileService(repo, stor, cfg)
 
@@ -64,8 +89,8 @@ func TestUpload(t *testing.T) {
 func TestUploadWithDefaultTTL(t *testing.T) {
 	repo := mocks.NewMockFileRepository()
 	stor := mocks.NewMockFileStorage()
-	cfg := config.Load()
-	cfg.DefaultTTLSec = 7200
+	cfg := testConfig()
+	cfg.Storage.DefaultTTL = 7200 * time.Second
 
 	svc := NewFileService(repo, stor, cfg)
 
@@ -85,7 +110,7 @@ func TestUploadWithDefaultTTL(t *testing.T) {
 func TestDownloadNonExistent(t *testing.T) {
 	repo := mocks.NewMockFileRepository()
 	stor := mocks.NewMockFileStorage()
-	cfg := config.Load()
+	cfg := testConfig()
 
 	svc := NewFileService(repo, stor, cfg)
 
@@ -98,7 +123,7 @@ func TestDownloadNonExistent(t *testing.T) {
 func TestDeleteNonExistent(t *testing.T) {
 	repo := mocks.NewMockFileRepository()
 	stor := mocks.NewMockFileStorage()
-	cfg := config.Load()
+	cfg := testConfig()
 
 	svc := NewFileService(repo, stor, cfg)
 
@@ -111,7 +136,7 @@ func TestDeleteNonExistent(t *testing.T) {
 func TestTokenCollision(t *testing.T) {
 	repo := mocks.NewMockFileRepository()
 	stor := mocks.NewMockFileStorage()
-	cfg := config.Load()
+	cfg := testConfig()
 
 	svc := NewFileService(repo, stor, cfg)
 
