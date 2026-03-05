@@ -27,11 +27,14 @@ func NewFileHandler(svc *service.FileService, cfg *config.Config) *FileHandler {
 func (h *FileHandler) Upload(c *echo.Context) error {
 	file, err := c.FormFile("file")
 	if err != nil {
+		c.Logger().Error("FormFile error", "error", err, "contentType", c.Request().Header.Get("Content-Type"), "contentLength", c.Request().ContentLength)
 		return c.JSON(http.StatusBadRequest, models.ErrorResponse{
 			Error:   "invalid_request",
 			Message: "No file provided",
 		})
 	}
+
+	c.Logger().Info("file received", "filename", file.Filename, "size", file.Size)
 
 	if file.Size > h.cfg.Storage.MaxFileSizeMB*1024*1024 {
 		return c.JSON(http.StatusBadRequest, models.ErrorResponse{
