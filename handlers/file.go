@@ -25,32 +25,53 @@ func NewFileHandler(svc *service.FileService, cfg *config.Config) *FileHandler {
 }
 
 func (h *FileHandler) Upload(c *echo.Context) error {
-	file, err := c.FormFile("file")
-	if err != nil {
-		c.Logger().Error("FormFile error", "error", err, "contentType", c.Request().Header.Get("Content-Type"), "contentLength", c.Request().ContentLength)
-		return c.JSON(http.StatusBadRequest, models.ErrorResponse{
-			Error:   "invalid_request",
-			Message: "No file provided",
-		})
-	}
-
-	c.Logger().Info("file received", "filename", file.Filename, "size", file.Size)
-
-	if file.Size > h.cfg.Storage.MaxFileSizeMB*1024*1024 {
+	contentLength := c.Request().ContentLength
+	if contentLength > h.cfg.Storage.MaxFileSizeMB*1024*1024 {
 		return c.JSON(http.StatusBadRequest, models.ErrorResponse{
 			Error:   "file_too_large",
 			Message: "File exceeds maximum allowed size",
 		})
 	}
 
-	src, err := file.Open()
+	mr, err := c.Request().MultipartReader()
 	if err != nil {
-		return c.JSON(http.StatusInternalServerError, models.ErrorResponse{
-			Error:   "upload_error",
-			Message: "Failed to open file",
+		c.Logger().Error("MultipartReader error", "error", err)
+		return c.JSON(http.StatusBadRequest, models.ErrorResponse{
+			Error:   "invalid_request",
+			Message: "Failed to read request",
 		})
 	}
-	defer src.Close()
+
+	var filename string
+	var fileReader io.Reader
+
+	for {
+		part, err := mr.NextPart()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return c.JSON(http.StatusBadRequest, models.ErrorResponse{
+				Error:   "invalid_request",
+				Message: "Failed to read form data",
+			})
+		}
+
+		if part.FormName() == "file" {
+			filename = part.FileName()
+			fileReader = part
+			break
+		}
+	}
+
+	if filename == "" || fileReader == nil {
+		return c.JSON(http.StatusBadRequest, models.ErrorResponse{
+			Error:   "invalid_request",
+			Message: "No file provided",
+		})
+	}
+
+	c.Logger().Info("file received", "filename", filename, "size", contentLength)
 
 	var ttl *int64
 	if ttlStr := c.FormValue("ttl_seconds"); ttlStr != "" {
@@ -65,7 +86,7 @@ func (h *FileHandler) Upload(c *echo.Context) error {
 	}
 	oneTimePtr := &oneTime
 
-	result, err := h.service.Upload(c.Request().Context(), src, file.Filename, ttl, oneTimePtr)
+	result, err := h.service.Upload(c.Request().Context(), fileReader, filename, ttl, oneTimePtr)
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, models.ErrorResponse{
 			Error:   "upload_failed",
