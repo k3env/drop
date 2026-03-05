@@ -33,7 +33,7 @@ steps:
         path: /go
     commands:
       - go mod download
-      - CGO_ENABLED=0 GOOS=linux go build -o data-worker -ldflags="-s -w" .
+      - CGO_ENABLED=0 GOOS=linux go build -o drop -ldflags="-s -w" .
     environment:
       GOPROXY: https://proxy.golang.org
       GOCACHE: /go/cache
