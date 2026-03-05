@@ -5,3 +5,5 @@ ui
 *.sql
 *.test
 coverage.txt
+Dockerfile
+.dockerignore

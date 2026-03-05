@@ -56,35 +56,35 @@ steps:
         - ${DRONE_COMMIT_SHA:0:8}
         - ${DRONE_BRANCH}
 
-#  - name: fetch-chart
-#    image: alpine/git
-#    volumes:
-#      - name: charts
-#        path: /charts
-#    environment:
-#      SSH_KEY:
-#        from_secret: ssh_key
-#    commands:
-#      - mkdir -p ~/.ssh
-#      - ssh-keyscan github.com >> ~/.ssh/known_hosts
-#      - git clone https://github.com/k3env/helm-charts.git /charts
-#    secrets:
-#      - ssh_key
-#
-#  - name: deploy
-#    image: alpine/helm:3.14.0
-#    volumes:
-#      - name: charts
-#        path: /charts
-#    commands:
-#      - apk add --no-cache bash curl
-#      - |
-#        helm upgrade --install prod /charts/drop-share \
-#        --namespace home \
-#        --create-namespace \
-#        --reuse-values \
-#        --wait \
-#        --set image.tag=${DRONE_TAG:-${DRONE_COMMIT_SHA:0:8}}
+  - name: fetch-chart
+    image: alpine/git
+    volumes:
+      - name: charts
+        path: /charts
+    environment:
+      SSH_KEY:
+        from_secret: ssh_key
+    commands:
+      - mkdir -p ~/.ssh
+      - ssh-keyscan github.com >> ~/.ssh/known_hosts
+      - git clone https://github.com/k3env/helm-charts.git /charts
+    secrets:
+      - ssh_key
+
+  - name: deploy
+    image: alpine/helm:3.14.0
+    volumes:
+      - name: charts
+        path: /charts
+    commands:
+      - apk add --no-cache bash curl
+      - |
+        helm upgrade --install filedrop-production /charts/drop-share \
+        --namespace home \
+        --create-namespace \
+        --reuse-values \
+        --wait \
+        --set app.image.tag=${DRONE_TAG:-${DRONE_COMMIT_SHA:0:8}}
 
 volumes:
   - name: charts
