@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"html/template"
 	"os"
 	"os/signal"
 	"syscall"
@@ -68,6 +69,11 @@ func main() {
 
 	e := echo.New()
 
+	tmpl := template.Must(template.ParseGlob("ui/templates/*.html"))
+	e.Renderer = &echo.TemplateRenderer{
+		Template: tmpl,
+	}
+
 	e.Use(httpMetrics.Middleware())
 	e.Use(httpTracing.Middleware())
 	e.Use(middleware.Logger(logger))
@@ -82,8 +88,13 @@ func main() {
 	fileHandler := handlers.NewFileHandler(fileSvc, cfg)
 
 	e.POST("/api/v1/files", fileHandler.Upload)
-	e.GET("/:token", fileHandler.Download)
+	e.GET("/api/v1/files/:token", fileHandler.Metadata)
+	e.GET("/:token/download", fileHandler.Download)
 	e.DELETE("/api/v1/files/:token", fileHandler.Delete)
+
+	e.Static("/static", "ui/static")
+	e.GET("/", handlers.Index)
+	e.GET("/:token", handlers.DownloadPage)
 
 	go func() {
 		addr := fmt.Sprintf(":%d", cfg.App.Port)

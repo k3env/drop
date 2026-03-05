@@ -72,10 +72,10 @@ func NewMockFileStorage() *MockFileStorage {
 	}
 }
 
-func (s *MockFileStorage) Save(ctx context.Context, token string, reader io.Reader, filename string) (string, error) {
+func (s *MockFileStorage) Save(ctx context.Context, token string, reader io.Reader, filename string) (string, int64, error) {
 	path := "/mock/" + token
 	s.files[path] = filename
-	return path, nil
+	return path, 0, nil
 }
 
 func (s *MockFileStorage) Load(ctx context.Context, path string) (io.ReadCloser, error) {

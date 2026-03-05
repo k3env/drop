@@ -35,10 +35,15 @@ https://files.example.com/{token}
 
 ### Layers
 
-/main.go (entrypoint)\
-/handlers (for echo handlers)\
-/models (dto)\
-/config (config structures and loader)
+/main.go (entrypoint)
+/handlers (HTTP handlers + UI handlers)
+/service (business logic)
+/storage (file storage abstraction)
+/repository (data access abstraction)
+/models (DTOs)
+/ui (frontend layer)
+  /static (CSS, JS)
+  /templates (Go templates)
 
 ### Responsibilities
 
@@ -105,9 +110,31 @@ Response:
 
 ------------------------------------------------------------------------
 
+### Get File Metadata
+
+GET /api/v1/files/:token
+
+Response:
+
+{
+  "token": "abc123",
+  "filename": "document.pdf",
+  "size": 1048576,
+  "content_type": "application/pdf",
+  "one_time": false,
+  "expires_at": "2026-03-03T12:00:00Z",
+  "status": "active"
+}
+
+Behavior:
+- 404 if not found
+- 410 if expired
+
+------------------------------------------------------------------------
+
 ### Download File
 
-GET /:token
+GET /:token/download
 
 Behavior:
 - 404 if not found
@@ -331,7 +358,6 @@ Never expose:
 -   Temporary authenticated links
 -   Chunked uploads
 -   Object storage support (S3-compatible)
--   Web UI
 -   QR code generation
 -   File preview
 -   Encryption at rest
@@ -358,6 +384,16 @@ Never expose:
 -   Use interfaces for storage & repository
 -   80%+ unit test coverage for service layer
 -   Configuration via YAML with env override
+
+### Frontend Development Rules
+
+-   Use Go templates for server-side rendering
+-   Vanilla JavaScript (no frameworks)
+-   CSS variables for theming
+-   Neutral minimalistic styling
+-   Progress bar for large file uploads
+-   Clipboard API for copy functionality
+-   Responsive design for mobile and desktop
 
 ------------------------------------------------------------------------
 

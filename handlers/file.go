@@ -146,3 +146,43 @@ func (h *FileHandler) Delete(c *echo.Context) error {
 		Message: "File deleted successfully",
 	})
 }
+
+func (h *FileHandler) Metadata(c *echo.Context) error {
+	token := c.Param("token")
+	if token == "" {
+		return c.JSON(http.StatusBadRequest, models.ErrorResponse{
+			Error:   "invalid_request",
+			Message: "Token is required",
+		})
+	}
+
+	file, err := h.service.GetMetadata(c.Request().Context(), token)
+	if err != nil {
+		if errors.Is(err, service.ErrFileNotFound) {
+			return c.JSON(http.StatusNotFound, models.ErrorResponse{
+				Error:   "file_not_found",
+				Message: "File does not exist",
+			})
+		}
+		if errors.Is(err, service.ErrFileExpired) {
+			return c.JSON(http.StatusGone, models.ErrorResponse{
+				Error:   "file_expired",
+				Message: "File has expired",
+			})
+		}
+		return c.JSON(http.StatusInternalServerError, models.ErrorResponse{
+			Error:   "metadata_failed",
+			Message: "Failed to get file metadata",
+		})
+	}
+
+	return c.JSON(http.StatusOK, models.FileMetadataResponse{
+		Token:       file.Token,
+		Filename:    file.Filename,
+		Size:        file.Size,
+		ContentType: file.ContentType,
+		OneTime:     file.OneTime,
+		ExpiresAt:   *file.ExpiresAt,
+		Status:      string(file.GetStatus()),
+	})
+}

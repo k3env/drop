@@ -68,7 +68,7 @@ func (s *FileService) Upload(ctx context.Context, reader io.Reader, filename str
 	}
 
 	ctxStorage, spanStorage := tracer.Start(ctx, "storage.Save")
-	storagePath, err := s.storage.Save(ctxStorage, token, reader, filename)
+	storagePath, size, err := s.storage.Save(ctxStorage, token, reader, filename)
 	spanStorage.End()
 	if err != nil {
 		span.RecordError(err)
@@ -90,7 +90,7 @@ func (s *FileService) Upload(ctx context.Context, reader io.Reader, filename str
 		Token:       token,
 		Filename:    filepath.Base(filename),
 		ContentType: contentType,
-		Size:        0,
+		Size:        size,
 		StoragePath: storagePath,
 		OneTime:     useOneTime,
 		ExpiresAt:   &expiresAt,
@@ -214,6 +214,32 @@ func (s *FileService) Delete(ctx context.Context, token string) error {
 	spanRepo2.End()
 
 	return nil
+}
+
+func (s *FileService) GetMetadata(ctx context.Context, token string) (*models.File, error) {
+	ctx, span := tracer.Start(ctx, "FileService.GetMetadata",
+		trace.WithAttributes(attribute.String("token", token)))
+	defer span.End()
+
+	ctxRepo, spanRepo := tracer.Start(ctx, "repository.GetByToken")
+	file, err := s.repo.GetByToken(ctxRepo, token)
+	spanRepo.End()
+
+	if err != nil {
+		span.RecordError(err)
+		return nil, err
+	}
+	if file == nil {
+		span.SetAttributes(attribute.String("error", "file_not_found"))
+		return nil, ErrFileNotFound
+	}
+
+	span.SetAttributes(
+		attribute.String("file.id", file.ID.String()),
+		attribute.String("filename", file.Filename),
+	)
+
+	return file, nil
 }
 
 func (s *FileService) generateToken() (string, error) {
