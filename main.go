@@ -5,8 +5,10 @@ import (
 	"embed"
 	"fmt"
 	"io/fs"
+	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"syscall"
 
 	"github.com/k3env/drop/config"
@@ -23,6 +25,36 @@ import (
 
 //go:embed ui
 var embeddedFS embed.FS
+
+func spaErrorHandler(uiFS fs.FS) echo.HTTPErrorHandler {
+	return func(c *echo.Context, err error) {
+		he, ok := err.(*echo.HTTPError)
+		if !ok {
+			c.JSON(http.StatusInternalServerError, map[string]string{"error": "internal_error"})
+			return
+		}
+
+		if he.Code != http.StatusNotFound {
+			c.JSON(he.Code, map[string]string{"error": fmt.Sprintf("%v", he.Message)})
+			return
+		}
+
+		path := c.Request().URL.Path
+		if path != "/index.html" && !isAssetPath(path) {
+			if _, openErr := uiFS.Open("index.html"); openErr == nil {
+				c.File("index.html")
+				return
+			}
+		}
+
+		c.JSON(http.StatusNotFound, map[string]string{"error": "not_found"})
+	}
+}
+
+func isAssetPath(path string) bool {
+	ext := filepath.Ext(path)
+	return ext == ".js" || ext == ".css" || ext == ".svg" || ext == ".png" || ext == ".jpg" || ext == ".ico"
+}
 
 func main() {
 	ctx := context.Background()
@@ -73,9 +105,6 @@ func main() {
 
 	e := echo.New()
 
-	staticFiles, _ := fs.Sub(embeddedFS, "ui")
-	e.StaticFS("/", staticFiles)
-
 	e.Use(httpMetrics.Middleware())
 	e.Use(httpTracing.Middleware())
 	e.Use(middleware.Logger(logger))
@@ -94,11 +123,16 @@ func main() {
 	e.GET("/:token/download", fileHandler.Download)
 	e.DELETE("/api/v1/files/:token", fileHandler.Delete)
 
+	staticFS, _ := fs.Sub(embeddedFS, "ui")
+	spa := handlers.NewUIHandler(staticFS)
+	e.GET("/*", spa.ServeSPA)
+	//e.HTTPErrorHandler = spaErrorHandler(staticFS)
+
 	go func() {
 		addr := fmt.Sprintf(":%d", cfg.App.Port)
 		logger.Info().Str("addr", addr).Msg("starting server")
-		if err := e.Start(addr); err != nil {
-			logger.Info().Msg("server stopped")
+		if err := e.Start(addr); err != nil && err != http.ErrServerClosed {
+			logger.Error().Err(err).Msg("server error")
 		}
 	}()
 
