@@ -75,9 +75,9 @@ func (s *FileService) Upload(ctx context.Context, reader io.Reader, filename str
 		return nil, err
 	}
 
-	expiresAt := time.Now().Add(s.cfg.Storage.DefaultTTL)
+	expiresAt := time.Now().UTC().Add(s.cfg.Storage.DefaultTTL)
 	if ttl != nil && *ttl > 0 {
-		expiresAt = time.Now().Add(time.Duration(*ttl) * time.Second)
+		expiresAt = time.Now().UTC().Add(time.Duration(*ttl) * time.Second)
 	}
 
 	useOneTime := false
@@ -95,7 +95,10 @@ func (s *FileService) Upload(ctx context.Context, reader io.Reader, filename str
 		OneTime:     useOneTime,
 		ExpiresAt:   &expiresAt,
 		Downloaded:  false,
-		CreatedAt:   time.Now(),
+		CreatedAt:   time.Now().UTC(),
+	}
+	if ttl == nil || *ttl == 0 {
+		file.ExpiresAt = nil
 	}
 
 	ctxRepo, spanRepo := tracer.Start(ctx, "repository.Create")
@@ -144,6 +147,13 @@ func (s *FileService) Download(ctx context.Context, token string) (io.ReadCloser
 		return nil, nil, ErrFileConsumed
 	}
 
+	span.SetAttributes(
+		attribute.String("file.id", file.ID.String()),
+		attribute.String("filename", file.Filename),
+		attribute.Bool("one_time", file.OneTime),
+		attribute.Bool("file.downloaded", file.Downloaded),
+	)
+
 	ctxStorage, spanStorage := tracer.Start(ctx, "storage.Load")
 	reader, err := s.storage.Load(ctxStorage, file.StoragePath)
 	spanStorage.End()
@@ -154,6 +164,7 @@ func (s *FileService) Download(ctx context.Context, token string) (io.ReadCloser
 	}
 
 	if file.OneTime {
+		span.SetAttributes(attribute.String("action", "marking_downloaded"))
 		ctxRepo2, spanRepo2 := tracer.Start(ctx, "repository.MarkDownloaded")
 		if err := s.repo.MarkDownloaded(ctxRepo2, token); err != nil {
 			spanRepo2.RecordError(err)

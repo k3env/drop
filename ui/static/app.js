@@ -55,8 +55,29 @@ function initUploadPage() {
     const progressFill = document.getElementById('progressFill');
     const progressText = document.getElementById('progressText');
     const errorMessage = document.getElementById('errorMessage');
+    const ttlSelect = document.getElementById('ttlSelect');
+    const noExpiry = document.getElementById('noExpiry');
+    const oneTime = document.getElementById('oneTime');
 
     if (!dropArea) return;
+
+    oneTime.addEventListener('change', () => {
+        if (oneTime.checked) {
+            ttlSelect.disabled = true;
+            noExpiry.checked = false;
+        } else {
+            ttlSelect.disabled = false;
+        }
+    });
+
+    noExpiry.addEventListener('change', () => {
+        if (noExpiry.checked) {
+            ttlSelect.disabled = true;
+            oneTime.checked = false;
+        } else {
+            ttlSelect.disabled = false;
+        }
+    });
 
     dropArea.addEventListener('click', () => fileInput.click());
 
@@ -98,6 +119,15 @@ function initUploadPage() {
         const file = fileInput.files[0];
         const formData = new FormData();
         formData.append('file', file);
+
+        if (oneTime.checked) {
+            formData.append('one_time', 'true');
+            formData.append('ttl_seconds', '0');
+        } else if (noExpiry.checked) {
+            formData.append('ttl_seconds', '0');
+        } else {
+            formData.append('ttl_seconds', ttlSelect.value);
+        }
 
         uploadBtn.disabled = true;
         uploadBtn.textContent = 'Uploading...';
@@ -179,8 +209,16 @@ async function initDownloadPage() {
         document.getElementById('filename').textContent = data.filename;
         document.getElementById('filesize').textContent = formatBytes(data.size);
         
-        const remaining = getRemainingTime(data.expires_at);
-        expiresAtEl.textContent = formatDuration(remaining);
+        if (data.one_time) {
+            document.getElementById('oneTimeRow').style.display = 'flex';
+        }
+        
+        if (data.expires_at === null) {
+            expiresAtEl.textContent = 'No expiration';
+        } else {
+            const remaining = getRemainingTime(data.expires_at);
+            expiresAtEl.textContent = formatDuration(remaining);
+        }
         
         statusEl.textContent = data.status;
         statusEl.className = 'file-status ' + data.status;
@@ -190,19 +228,21 @@ async function initDownloadPage() {
             downloadBtn.textContent = data.status === 'expired' ? 'File Expired' : 'Already Downloaded';
         }
 
-        const updateTimer = () => {
-            const remaining = getRemainingTime(data.expires_at);
-            expiresAtEl.textContent = formatDuration(remaining);
-            
-            if (remaining <= 0 && data.status === 'active') {
-                statusEl.textContent = 'expired';
-                statusEl.className = 'file-status expired';
-                downloadBtn.disabled = true;
-                downloadBtn.textContent = 'File Expired';
-            }
-        };
+        if (data.expires_at !== null) {
+            const updateTimer = () => {
+                const remaining = getRemainingTime(data.expires_at);
+                expiresAtEl.textContent = formatDuration(remaining);
+                
+                if (remaining <= 0 && data.status === 'active') {
+                    statusEl.textContent = 'expired';
+                    statusEl.className = 'file-status expired';
+                    downloadBtn.disabled = true;
+                    downloadBtn.textContent = 'File Expired';
+                }
+            };
 
-        setInterval(updateTimer, 1000);
+            setInterval(updateTimer, 1000);
+        }
 
     } catch (err) {
         console.error('Error:', err);

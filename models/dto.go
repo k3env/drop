@@ -1,16 +1,19 @@
 package models
 
-import "time"
+import (
+	"mime/multipart"
+	"time"
+)
 
 type UploadRequest struct {
-	File    string `json:"file" form:"file"`
-	TTL     *int64 `json:"ttl_seconds" form:"ttl_seconds"`
-	OneTime *bool  `json:"one_time" form:"one_time"`
+	File    *multipart.FileHeader `json:"file" form:"file"`
+	TTL     *int64                `json:"ttl_seconds" form:"ttl_seconds"`
+	OneTime *bool                 `json:"one_time" form:"one_time"`
 }
 
 type UploadResponse struct {
-	Token     string    `json:"token"`
-	ExpiresAt time.Time `json:"expires_at"`
+	Token     string     `json:"token"`
+	ExpiresAt *time.Time `json:"expires_at"`
 }
 
 type ErrorResponse struct {
@@ -24,11 +27,11 @@ type DeleteResponse struct {
 }
 
 type FileMetadataResponse struct {
-	Token       string    `json:"token"`
-	Filename    string    `json:"filename"`
-	Size        int64     `json:"size"`
-	ContentType string    `json:"content_type"`
-	OneTime     bool      `json:"one_time"`
-	ExpiresAt   time.Time `json:"expires_at"`
-	Status      string    `json:"status"`
+	Token       string     `json:"token"`
+	Filename    string     `json:"filename"`
+	Size        int64      `json:"size"`
+	ContentType string     `json:"content_type"`
+	OneTime     bool       `json:"one_time"`
+	ExpiresAt   *time.Time `json:"expires_at"`
+	Status      string     `json:"status"`
 }
