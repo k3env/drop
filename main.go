@@ -112,6 +112,13 @@ func main() {
 	e.Use(middleware.RateLimit(cfg))
 	e.Use(middleware.CORS())
 	e.Use(middleware.BodyLimit(cfg.Storage.MaxFileSizeMB * 1024 * 1024))
+	e.Use(func(next echo.HandlerFunc) echo.HandlerFunc {
+		return func(c *echo.Context) error {
+			ctx := logger.WithContext(c.Request().Context())
+			c.SetRequest(c.Request().WithContext(ctx))
+			return next(c)
+		}
+	})
 
 	e.GET("/health", handlers.Health)
 	e.GET("/ready", handlers.Ready)

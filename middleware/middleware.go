@@ -1,6 +1,9 @@
 package middleware
 
 import (
+	"fmt"
+	"net/http"
+
 	"github.com/k3env/drop/config"
 	"github.com/labstack/echo/v5"
 	"github.com/labstack/echo/v5/middleware"
@@ -15,7 +18,13 @@ func Logger(logger zerolog.Logger) echo.MiddlewareFunc {
 		LogURI:     true,
 		LogLatency: true,
 		LogValuesFunc: func(c *echo.Context, v middleware.RequestLoggerValues) error {
-			logger.Info().
+			event := logger.Info()
+			if v.Status >= 500 {
+				event = logger.Error()
+			} else if v.Status >= 400 {
+				event = logger.Warn()
+			}
+			event.
 				Str("method", c.Request().Method).
 				Str("path", c.Request().URL.Path).
 				Int("status", v.Status).
@@ -29,7 +38,27 @@ func Logger(logger zerolog.Logger) echo.MiddlewareFunc {
 }
 
 func Recovery() echo.MiddlewareFunc {
-	return middleware.Recover()
+	return func(next echo.HandlerFunc) echo.HandlerFunc {
+		return func(c *echo.Context) error {
+			defer func() {
+				if r := recover(); r != nil {
+					err, ok := r.(error)
+					if !ok {
+						err = fmt.Errorf("%v", r)
+					}
+					logger := zerolog.Ctx(c.Request().Context())
+					logger.Error().
+						Err(err).
+						Str("method", c.Request().Method).
+						Str("path", c.Request().URL.Path).
+						Str("ip", c.RealIP()).
+						Msg("panic recovered")
+					c.JSON(http.StatusInternalServerError, map[string]string{"error": "internal_error"})
+				}
+			}()
+			return next(c)
+		}
+	}
 }
 
 func RateLimit(cfg *config.Config) echo.MiddlewareFunc {

@@ -14,12 +14,17 @@ import (
 	"github.com/k3env/drop/models"
 	"github.com/k3env/drop/repository"
 	"github.com/k3env/drop/storage"
+	"github.com/rs/zerolog"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 )
 
 var tracer = otel.Tracer("drop.service")
+
+func WithLogger(ctx context.Context, logger zerolog.Logger) context.Context {
+	return logger.WithContext(ctx)
+}
 
 var (
 	ErrFileNotFound   = errors.New("file_not_found")
@@ -54,12 +59,16 @@ func (s *FileService) Upload(ctx context.Context, reader io.Reader, filename str
 	ctx, span := tracer.Start(ctx, "FileService.Upload",
 		trace.WithAttributes(attribute.String("filename", filename)))
 	defer span.End()
+	var logger zerolog.Logger
 
 	token, err := s.generateToken()
 	if err != nil {
+		zerolog.Ctx(ctx).Error().Err(err).Msg("failed to generate token")
 		span.RecordError(err)
 		return nil, err
 	}
+	logger = zerolog.Ctx(ctx).With().Str("token", token).Logger()
+	ctx = logger.WithContext(ctx)
 	span.SetAttributes(attribute.String("token", token))
 
 	contentType := mime.TypeByExtension(filepath.Ext(filename))
@@ -71,6 +80,7 @@ func (s *FileService) Upload(ctx context.Context, reader io.Reader, filename str
 	storagePath, size, err := s.storage.Save(ctxStorage, token, reader, filename)
 	spanStorage.End()
 	if err != nil {
+		logger.Error().Err(err).Str("storage_path", storagePath).Msg("failed to save file")
 		span.RecordError(err)
 		return nil, err
 	}
@@ -103,6 +113,7 @@ func (s *FileService) Upload(ctx context.Context, reader io.Reader, filename str
 
 	ctxRepo, spanRepo := tracer.Start(ctx, "repository.Create")
 	if err := s.repo.Create(ctxRepo, file); err != nil {
+		logger.Error().Err(err).Msg("failed to create file record")
 		spanRepo.RecordError(err)
 		spanRepo.End()
 		s.storage.Delete(ctx, storagePath)
@@ -110,6 +121,12 @@ func (s *FileService) Upload(ctx context.Context, reader io.Reader, filename str
 		return nil, err
 	}
 	spanRepo.End()
+
+	logger.Info().
+		Str("file_id", file.ID.String()).
+		Int64("size", size).
+		Bool("one_time", useOneTime).
+		Msg("file uploaded")
 
 	span.SetAttributes(
 		attribute.String("file.id", file.ID.String()),
@@ -123,26 +140,31 @@ func (s *FileService) Download(ctx context.Context, token string) (io.ReadCloser
 	ctx, span := tracer.Start(ctx, "FileService.Download",
 		trace.WithAttributes(attribute.String("token", token)))
 	defer span.End()
+	log := zerolog.Ctx(ctx)
 
 	ctxRepo, spanRepo := tracer.Start(ctx, "repository.GetByToken")
 	file, err := s.repo.GetByToken(ctxRepo, token)
 	spanRepo.End()
 
 	if err != nil {
+		log.Error().Err(err).Str("token", token).Msg("failed to get file by token")
 		span.RecordError(err)
 		return nil, nil, err
 	}
 	if file == nil {
+		log.Warn().Str("token", token).Msg("file not found")
 		span.SetAttributes(attribute.String("error", "file_not_found"))
 		return nil, nil, ErrFileNotFound
 	}
 
 	if file.IsExpired() {
+		log.Info().Str("token", token).Str("file_id", file.ID.String()).Msg("file expired")
 		span.SetAttributes(attribute.String("error", "file_expired"))
 		return nil, nil, ErrFileExpired
 	}
 
 	if file.OneTime && file.Downloaded {
+		log.Info().Str("token", token).Str("file_id", file.ID.String()).Msg("file already downloaded")
 		span.SetAttributes(attribute.String("error", "file_consumed"))
 		return nil, nil, ErrFileConsumed
 	}
@@ -159,6 +181,7 @@ func (s *FileService) Download(ctx context.Context, token string) (io.ReadCloser
 	spanStorage.End()
 
 	if err != nil {
+		log.Error().Err(err).Msg("failed to load file from storage")
 		span.RecordError(err)
 		return nil, nil, err
 	}
@@ -167,6 +190,7 @@ func (s *FileService) Download(ctx context.Context, token string) (io.ReadCloser
 		span.SetAttributes(attribute.String("action", "marking_downloaded"))
 		ctxRepo2, spanRepo2 := tracer.Start(ctx, "repository.MarkDownloaded")
 		if err := s.repo.MarkDownloaded(ctxRepo2, token); err != nil {
+			log.Error().Err(err).Msg("failed to mark file as downloaded")
 			spanRepo2.RecordError(err)
 			spanRepo2.End()
 			reader.Close()
@@ -176,6 +200,12 @@ func (s *FileService) Download(ctx context.Context, token string) (io.ReadCloser
 		spanRepo2.End()
 		file.Downloaded = true
 	}
+
+	log.Info().
+		Str("file_id", file.ID.String()).
+		Str("filename", file.Filename).
+		Int64("size", file.Size).
+		Msg("file downloaded")
 
 	span.SetAttributes(
 		attribute.String("file.id", file.ID.String()),
@@ -190,16 +220,19 @@ func (s *FileService) Delete(ctx context.Context, token string) error {
 	ctx, span := tracer.Start(ctx, "FileService.Delete",
 		trace.WithAttributes(attribute.String("token", token)))
 	defer span.End()
+	log := zerolog.Ctx(ctx)
 
 	ctxRepo, spanRepo := tracer.Start(ctx, "repository.GetByToken")
 	file, err := s.repo.GetByToken(ctxRepo, token)
 	spanRepo.End()
 
 	if err != nil {
+		log.Error().Err(err).Str("token", token).Msg("failed to get file by token")
 		span.RecordError(err)
 		return err
 	}
 	if file == nil {
+		log.Warn().Str("token", token).Msg("file not found")
 		span.SetAttributes(attribute.String("error", "file_not_found"))
 		return ErrFileNotFound
 	}
@@ -208,6 +241,7 @@ func (s *FileService) Delete(ctx context.Context, token string) error {
 
 	ctxStorage, spanStorage := tracer.Start(ctx, "storage.Delete")
 	if err := s.storage.Delete(ctxStorage, file.StoragePath); err != nil {
+		log.Error().Err(err).Str("storage_path", file.StoragePath).Msg("failed to delete file from storage")
 		spanStorage.RecordError(err)
 		spanStorage.End()
 		span.RecordError(err)
@@ -217,12 +251,15 @@ func (s *FileService) Delete(ctx context.Context, token string) error {
 
 	ctxRepo2, spanRepo2 := tracer.Start(ctx, "repository.Delete")
 	if err := s.repo.Delete(ctxRepo2, token); err != nil {
+		log.Error().Err(err).Msg("failed to delete file record")
 		spanRepo2.RecordError(err)
 		spanRepo2.End()
 		span.RecordError(err)
 		return err
 	}
 	spanRepo2.End()
+
+	log.Info().Str("file_id", file.ID.String()).Msg("file deleted")
 
 	return nil
 }
@@ -231,16 +268,19 @@ func (s *FileService) GetMetadata(ctx context.Context, token string) (*models.Fi
 	ctx, span := tracer.Start(ctx, "FileService.GetMetadata",
 		trace.WithAttributes(attribute.String("token", token)))
 	defer span.End()
+	log := zerolog.Ctx(ctx)
 
 	ctxRepo, spanRepo := tracer.Start(ctx, "repository.GetByToken")
 	file, err := s.repo.GetByToken(ctxRepo, token)
 	spanRepo.End()
 
 	if err != nil {
+		log.Error().Err(err).Str("token", token).Msg("failed to get file by token")
 		span.RecordError(err)
 		return nil, err
 	}
 	if file == nil {
+		log.Warn().Str("token", token).Msg("file not found")
 		span.SetAttributes(attribute.String("error", "file_not_found"))
 		return nil, ErrFileNotFound
 	}
