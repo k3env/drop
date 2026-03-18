@@ -15,10 +15,14 @@ trigger:
 steps:
   - name: frontend-build
     image: node:22-alpine
+    volumes:
+      - name: pnpm-cache
+        path: /pnpm
     commands:
       - cd front
-      - npm install
-      - npm run build
+      - npm install -g pnpm
+      - pnpm install --frozen-lockfile
+      - pnpm run build
   - name: test
     image: golang:1.25
     volumes:
@@ -101,3 +105,6 @@ volumes:
   - name: go-cache
     claim:
       name: go-cache-pvc
+  - name: pnpm-cache
+    claim:
+      name: pnpm-cache-pvc

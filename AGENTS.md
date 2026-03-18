@@ -439,17 +439,21 @@ func main() {
 
 ### Build Process
 
-1. `cd front && npm install && npm run build`
+1. `cd front && pnpm install && pnpm run build`
 2. `go build` embeds `ui/` directory
 
 CI/CD (drone.yml):
 ```yaml
 - name: frontend-build
   image: node:22-alpine
+  volumes:
+    - name: pnpm-cache
+      path: /pnpm
   commands:
     - cd front
-    - npm install
-    - npm run build
+    - npm install -g pnpm
+    - pnpm install --frozen-lockfile
+    - pnpm run build
 ```
 
 ### Dev Server Proxy
