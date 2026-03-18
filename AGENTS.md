@@ -36,7 +36,7 @@ https://files.example.com/{token}
 ### Layers
 
 /main.go (entrypoint)
-/handlers (HTTP handlers + UI handlers)
+/handlers (HTTP handlers)
 /service (business logic)
 /storage (file storage abstraction)
 /repository (data access abstraction)
@@ -417,8 +417,8 @@ front/
 └── package.json
 
 ui/
-├── index.html              # SPA entry (copied from front/dist)
-├── assets/                 # JS, CSS bundles
+├── index.html              # SPA entry
+├── assets/                 # JS, CSS bundles (built directly by Vite)
 ├── favicon.svg
 └── icons.svg
 ```
@@ -440,8 +440,7 @@ func main() {
 ### Build Process
 
 1. `cd front && npm install && npm run build`
-2. Copy `front/dist/*` to `ui/`
-3. `go build` embeds `ui/` directory
+2. `go build` embeds `ui/` directory
 
 CI/CD (drone.yml):
 ```yaml
@@ -451,7 +450,6 @@ CI/CD (drone.yml):
     - cd front
     - npm install
     - npm run build
-    - cp -r dist/* ../ui/
 ```
 
 ### Dev Server Proxy

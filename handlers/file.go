@@ -4,6 +4,7 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"os"
 	"strconv"
 
 	"github.com/k3env/drop/config"
@@ -32,29 +33,87 @@ func (h *FileHandler) Upload(c *echo.Context) error {
 			Message: "File exceeds maximum allowed size",
 		})
 	}
-	var request models.UploadRequest
-	if err := c.Bind(&request); err != nil {
-		c.Logger().Error("Request bind error", "error", err)
-		return c.JSON(http.StatusBadRequest, models.ErrorResponse{
-			Error:   "bad_request",
-			Message: "Failed to bind request",
-		})
-	}
 
-	filename := request.File.Filename
-	ttlSeconds := request.TTL
-
-	c.Logger().Info("file received", "filename", filename, "ttl", ttlSeconds, "one_time", request.OneTime)
-	f, err := request.File.Open()
+	mr, err := c.Request().MultipartReader()
 	if err != nil {
-		c.Logger().Error("Failed to open file", "error", err)
 		return c.JSON(http.StatusBadRequest, models.ErrorResponse{
 			Error:   "bad_request",
-			Message: "Failed to open file",
+			Message: "Failed to read multipart request",
 		})
 	}
 
-	result, err := h.service.Upload(c.Request().Context(), f, filename, ttlSeconds, request.OneTime)
+	var filename string
+	var tmpFilePath string
+	var tmpFile *os.File
+	var ttlSeconds *int64
+	oneTime := false
+
+	for {
+		part, err := mr.NextPart()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return c.JSON(http.StatusBadRequest, models.ErrorResponse{
+				Error:   "bad_request",
+				Message: "Failed to read form data",
+			})
+		}
+
+		name := part.FormName()
+		switch name {
+		case "file":
+			filename = part.FileName()
+			tmpFile, err = os.CreateTemp("", "upload-*")
+			if err != nil {
+				return c.JSON(http.StatusInternalServerError, models.ErrorResponse{
+					Error:   "server_error",
+					Message: "Failed to create temp file",
+				})
+			}
+			tmpFilePath = tmpFile.Name()
+			if _, err := io.Copy(tmpFile, part); err != nil {
+				tmpFile.Close()
+				os.Remove(tmpFilePath)
+				return c.JSON(http.StatusInternalServerError, models.ErrorResponse{
+					Error:   "server_error",
+					Message: "Failed to save file",
+				})
+			}
+			tmpFile.Close()
+		case "ttl_seconds":
+			data, _ := io.ReadAll(part)
+			if parsed, err := strconv.ParseInt(string(data), 10, 64); err == nil {
+				ttlSeconds = &parsed
+			}
+		case "one_time":
+			data, _ := io.ReadAll(part)
+			oneTime = string(data) == "true" || string(data) == "1"
+		default:
+			io.Copy(io.Discard, part)
+		}
+	}
+
+	if filename == "" || tmpFilePath == "" {
+		return c.JSON(http.StatusBadRequest, models.ErrorResponse{
+			Error:   "bad_request",
+			Message: "No file provided",
+		})
+	}
+
+	c.Logger().Info("file received", "filename", filename, "ttl", ttlSeconds, "one_time", oneTime)
+
+	fileReader, err := os.Open(tmpFilePath)
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, models.ErrorResponse{
+			Error:   "server_error",
+			Message: "Failed to read temp file",
+		})
+	}
+	defer fileReader.Close()
+	defer os.Remove(tmpFilePath)
+
+	result, err := h.service.Upload(c.Request().Context(), fileReader, filename, ttlSeconds, &oneTime)
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, models.ErrorResponse{
 			Error:   "upload_failed",

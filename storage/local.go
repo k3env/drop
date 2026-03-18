@@ -40,17 +40,23 @@ func (s *LocalStorage) Save(ctx context.Context, token string, reader io.Reader,
 	if err != nil {
 		return "", 0, err
 	}
-	defer file.Close()
 
 	written, err := io.Copy(file, reader)
 	if err != nil {
+		file.Close()
 		os.Remove(path)
 		return "", 0, err
 	}
 
 	if written == 0 {
+		file.Close()
 		os.Remove(path)
 		return "", 0, errors.New("empty file")
+	}
+
+	if err := file.Close(); err != nil {
+		os.Remove(path)
+		return "", 0, err
 	}
 
 	return path, written, nil
