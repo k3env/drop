@@ -13,12 +13,21 @@ import (
 
 type LocalStorage struct {
 	basePath string
+	tempDir  string
 }
 
 func NewLocalStorage(cfg *config.Config) (*LocalStorage, error) {
 	return &LocalStorage{
 		basePath: cfg.Storage.Local.Path,
+		tempDir:  cfg.Storage.Local.TempDir,
 	}, nil
+}
+
+func (s *LocalStorage) TempDir() string {
+	if s.tempDir != "" {
+		return s.tempDir
+	}
+	return os.TempDir()
 }
 
 func (s *LocalStorage) Init(ctx context.Context) error {

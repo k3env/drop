@@ -27,7 +27,8 @@ type StorageConfig struct {
 }
 
 type LocalStorageConfig struct {
-	Path string `config:"path" default:"./data" usage:"Local storage path"`
+	Path    string `config:"path" default:"./data" usage:"Local storage path"`
+	TempDir string `config:"temp_dir" default:"" usage:"Temp directory for uploads (empty = system default)"`
 }
 
 type ObjectStorageConfig struct{} // not implemented now

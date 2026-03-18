@@ -64,8 +64,9 @@ func (h *FileHandler) Upload(c *echo.Context) error {
 		switch name {
 		case "file":
 			filename = part.FileName()
-			tmpFile, err = os.CreateTemp("", "upload-*")
+			tmpFile, err = os.CreateTemp(h.service.TempDir(), "upload-")
 			if err != nil {
+				c.Logger().Error("Failed to create temp file", "error", err)
 				return c.JSON(http.StatusInternalServerError, models.ErrorResponse{
 					Error:   "server_error",
 					Message: "Failed to create temp file",
@@ -73,6 +74,7 @@ func (h *FileHandler) Upload(c *echo.Context) error {
 			}
 			tmpFilePath = tmpFile.Name()
 			if _, err := io.Copy(tmpFile, part); err != nil {
+				c.Logger().Error("Failed to write to temp file", "error", err)
 				tmpFile.Close()
 				os.Remove(tmpFilePath)
 				return c.JSON(http.StatusInternalServerError, models.ErrorResponse{
@@ -105,6 +107,7 @@ func (h *FileHandler) Upload(c *echo.Context) error {
 
 	fileReader, err := os.Open(tmpFilePath)
 	if err != nil {
+		c.Logger().Error("Failed to open temp file", "error", err)
 		return c.JSON(http.StatusInternalServerError, models.ErrorResponse{
 			Error:   "server_error",
 			Message: "Failed to read temp file",

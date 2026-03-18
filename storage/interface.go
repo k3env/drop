@@ -11,4 +11,5 @@ type FileStorage interface {
 	Delete(ctx context.Context, path string) error
 	Init(ctx context.Context) error
 	Close(ctx context.Context) error
+	TempDir() string
 }

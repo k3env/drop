@@ -95,5 +95,9 @@ func (s *MockFileStorage) Close(ctx context.Context) error {
 	return nil
 }
 
+func (s *MockFileStorage) TempDir() string {
+	return "/tmp"
+}
+
 var _ repository.FileRepository = (*MockFileRepository)(nil)
 var _ storage.FileStorage = (*MockFileStorage)(nil)

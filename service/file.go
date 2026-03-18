@@ -55,6 +55,10 @@ func NewFileService(repo repository.FileRepository, storage storage.FileStorage,
 	}
 }
 
+func (s *FileService) TempDir() string {
+	return s.storage.TempDir()
+}
+
 func (s *FileService) Upload(ctx context.Context, reader io.Reader, filename string, ttl *int64, oneTime *bool) (*models.File, error) {
 	ctx, span := tracer.Start(ctx, "FileService.Upload",
 		trace.WithAttributes(attribute.String("filename", filename)))
