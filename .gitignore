@@ -4,3 +4,4 @@ go.work.sum
 config*.yaml
 drop*
 data/
+ui/

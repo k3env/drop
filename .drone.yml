@@ -13,6 +13,12 @@ trigger:
     - tag
 
 steps:
+  - name: frontend-build
+    image: node:22-alpine
+    commands:
+      - cd front
+      - npm install
+      - npm run build
   - name: test
     image: golang:1.25
     volumes:

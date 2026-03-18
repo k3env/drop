@@ -41,9 +41,7 @@ https://files.example.com/{token}
 /storage (file storage abstraction)
 /repository (data access abstraction)
 /models (DTOs)
-/ui (frontend layer)
-  /static (CSS, JS)
-  /templates (Go templates)
+/ui (SPA static files embedded in binary)
 
 ### Responsibilities
 
@@ -84,6 +82,11 @@ https://files.example.com/{token}
 - `github.com/jackc/pgx/v5` — PostgreSQL драйвер
 - `github.com/rs/zerolog` — логирование
 - `golang.org/x/time/rate` — rate limiting
+
+### Frontend (Vite + React SPA)
+- `react` ^19.2.4 — UI framework
+- `react-dom` ^19.2.4 — React DOM
+- `react-router-dom` ^7 — routing
 
 ### Infrastructure
 - `github.com/k3env/koanf-extensions` — конфигурация (YAML + env)
@@ -387,13 +390,83 @@ Never expose:
 
 ### Frontend Development Rules
 
--   Use Go templates for server-side rendering
--   Vanilla JavaScript (no frameworks)
+-   Vite + React 19 + React Router v7
+-   TypeScript
 -   CSS variables for theming
--   Neutral minimalistic styling
+-   Neutral minimalistic styling (preserved from original design)
 -   Progress bar for large file uploads
 -   Clipboard API for copy functionality
 -   Responsive design for mobile and desktop
+
+### Frontend Directory Structure
+
+```
+front/
+├── src/
+│   ├── api/
+│   │   └── types.ts        # TypeScript types from backend DTOs
+│   ├── pages/
+│   │   ├── UploadPage.tsx  # Upload form with TTL/one-time options
+│   │   ├── DownloadPage.tsx # File info and download
+│   │   └── NotFoundPage.tsx # 404 page
+│   ├── utils.ts            # formatBytes, formatDuration, etc.
+│   ├── index.css           # Global styles
+│   ├── main.tsx            # React Router setup
+│   └── App.tsx             # Layout
+├── vite.config.ts          # Vite config with API proxy
+└── package.json
+
+ui/
+├── index.html              # SPA entry (copied from front/dist)
+├── assets/                 # JS, CSS bundles
+├── favicon.svg
+└── icons.svg
+```
+
+### SPA Integration
+
+The SPA is embedded in the Go binary using `//go:embed`:
+
+```go
+//go:embed ui
+var embeddedFS embed.FS
+
+func main() {
+    staticFiles, _ := fs.Sub(embeddedFS, "ui")
+    e.StaticFS("/", staticFiles)
+}
+```
+
+### Build Process
+
+1. `cd front && npm install && npm run build`
+2. Copy `front/dist/*` to `ui/`
+3. `go build` embeds `ui/` directory
+
+CI/CD (drone.yml):
+```yaml
+- name: frontend-build
+  image: node:22-alpine
+  commands:
+    - cd front
+    - npm install
+    - npm run build
+    - cp -r dist/* ../ui/
+```
+
+### Dev Server Proxy
+
+Vite proxies API requests to Go backend:
+
+```typescript
+// vite.config.ts
+server: {
+  proxy: {
+    '/api': 'http://localhost:8080',
+    '/:token/download': 'http://localhost:8080',
+  }
+}
+```
 
 ------------------------------------------------------------------------
 

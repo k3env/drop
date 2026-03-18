@@ -4,7 +4,6 @@ import (
 	"context"
 	"embed"
 	"fmt"
-	"html/template"
 	"io/fs"
 	"os"
 	"os/signal"
@@ -22,11 +21,8 @@ import (
 	"github.com/rs/zerolog"
 )
 
-//go:embed ui/templates
-var templatesFS embed.FS
-
-//go:embed ui/static
-var staticFS embed.FS
+//go:embed ui
+var embeddedFS embed.FS
 
 func main() {
 	ctx := context.Background()
@@ -77,13 +73,8 @@ func main() {
 
 	e := echo.New()
 
-	tmpl := template.Must(template.ParseFS(templatesFS, "ui/templates/*.html"))
-	e.Renderer = &echo.TemplateRenderer{
-		Template: tmpl,
-	}
-
-	staticFiles, _ := fs.Sub(staticFS, "ui/static")
-	e.StaticFS("/static", staticFiles)
+	staticFiles, _ := fs.Sub(embeddedFS, "ui")
+	e.StaticFS("/", staticFiles)
 
 	e.Use(httpMetrics.Middleware())
 	e.Use(httpTracing.Middleware())
@@ -102,9 +93,6 @@ func main() {
 	e.GET("/api/v1/files/:token", fileHandler.Metadata)
 	e.GET("/:token/download", fileHandler.Download)
 	e.DELETE("/api/v1/files/:token", fileHandler.Delete)
-
-	e.GET("/", handlers.Index)
-	e.GET("/:token", handlers.DownloadPage)
 
 	go func() {
 		addr := fmt.Sprintf(":%d", cfg.App.Port)

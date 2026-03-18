@@ -95,15 +95,37 @@ func TestUploadWithDefaultTTL(t *testing.T) {
 	svc := NewFileService(repo, stor, cfg)
 
 	reader := bytes.NewReader([]byte("test"))
+	ttl := int64(7200)
+
+	file, err := svc.Upload(context.Background(), reader, "test.txt", &ttl, nil)
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	expectedExpiry := time.Now().Add(7200 * time.Second)
+	if file.ExpiresAt == nil {
+		t.Error("expected expires_at to be set")
+	} else if file.ExpiresAt.Before(expectedExpiry.Add(-time.Second)) || file.ExpiresAt.After(expectedExpiry.Add(time.Second)) {
+		t.Error("expected expires_at to be 2 hours from now")
+	}
+}
+
+func TestUploadNoExpiry(t *testing.T) {
+	repo := mocks.NewMockFileRepository()
+	stor := mocks.NewMockFileStorage()
+	cfg := testConfig()
+
+	svc := NewFileService(repo, stor, cfg)
+
+	reader := bytes.NewReader([]byte("test"))
 
 	file, err := svc.Upload(context.Background(), reader, "test.txt", nil, nil)
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
 
-	expectedExpiry := time.Now().Add(7200 * time.Second)
-	if file.ExpiresAt.Before(expectedExpiry.Add(-time.Second)) || file.ExpiresAt.After(expectedExpiry.Add(time.Second)) {
-		t.Error("expected expires_at to be 2 hours from now")
+	if file.ExpiresAt != nil {
+		t.Error("expected expires_at to be nil for no-expiry files")
 	}
 }
 
